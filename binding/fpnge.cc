@@ -1080,6 +1080,8 @@ static void EncodeOneRow(size_t bytes_per_line,
 
       // need to mask out unused hi bits because WriteBits uses OR operations to merge data (this might not be needed in PEXT variant)
       auto bits_hi = _mmsi(and)(use_mid, bits_mid_hi);
+      bits_lo = _mmsi(and)(bits_lo, maskv);
+      bits_hi = _mmsi(and)(bits_hi, maskv);
 
       WriteBits(nbits, bits_lo, bits_hi, table.mid_nbits - 4, writer);
     } else {
@@ -1087,6 +1089,7 @@ static void EncodeOneRow(size_t bytes_per_line,
       auto nbits = _mm(blendv_epi8)(nbits_low16, nbits_hi16, bytes);
       auto bits_lo = _mm(blendv_epi8)(bits_low16, bits_hi16, bytes);
       nbits = _mmsi(and)(nbits, maskv);
+      bits_lo = _mmsi(and)(bits_lo, maskv);
       
       WriteBitsShort(nbits, bits_lo, writer);
     }
