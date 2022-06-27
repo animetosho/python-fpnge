@@ -2,16 +2,7 @@
 #include <Python.h>
 #include "fpnge.h"
 
-
-PyObject* fpnge_encode(PyObject* self, PyObject* args) {
-	(void)self;
-	
-	const char* data; Py_ssize_t data_len;
-	unsigned width, stride, height, num_channels, bits_per_channel;
-	
-	if (!PyArg_ParseTuple(args, "y#IIIII", &data, &data_len, &width, &stride, &height, &num_channels, &bits_per_channel))
-		return NULL;
-	
+static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width, unsigned stride, unsigned height, unsigned num_channels, unsigned bits_per_channel) {
 	// check params
 	if (width < 1 || height < 1) {
 		PyErr_SetString(PyExc_ValueError, "Image size must be at least 1x1");
@@ -68,12 +59,62 @@ PyObject* fpnge_encode(PyObject* self, PyObject* args) {
 }
 
 
+PyObject* fpnge_encode_bytes(PyObject* self, PyObject* args) {
+	(void)self;
+	
+	const char* data; Py_ssize_t data_len;
+	unsigned width, stride = 0, height, num_channels, bits_per_channel;
+	
+	if (!PyArg_ParseTuple(args, "y#IIII|I", &data, &data_len, &width, &height, &num_channels, &bits_per_channel, &stride))
+		return NULL;
+	
+	if (stride == 0) stride = width * num_channels * bits_per_channel/8;
+	
+	return do_encode(data, data_len, width, stride, height, num_channels, bits_per_channel);
+}
+
+PyObject* fpnge_encode_view(PyObject* self, PyObject* args) {
+	(void)self;
+	
+	PyObject* view;
+	unsigned width, stride = 0, height, num_channels, bits_per_channel;
+	
+	if (!PyArg_ParseTuple(args, "OIIII|I", &view, &width, &height, &num_channels, &bits_per_channel, &stride))
+		return NULL;
+	
+	if (!PyMemoryView_Check(view)) {
+		PyErr_SetString(PyExc_SystemError, "Given object is not a memoryview");
+		Py_DECREF(view);
+		return NULL;
+	}
+	
+	if (stride == 0) stride = width * num_channels * bits_per_channel/8;
+	
+	Py_buffer* view_buf = PyMemoryView_GET_BUFFER(view);
+	if (!PyBuffer_IsContiguous(view_buf, 'C')) {
+		PyErr_SetString(PyExc_SystemError, "Supplied memoryview must be C contiguous");
+		Py_DECREF(view);
+		return NULL;
+	}
+	
+	PyObject* ret = do_encode(view_buf->buf, view_buf->len, width, stride, height, num_channels, bits_per_channel);
+	Py_DECREF(view);
+	return ret;
+}
+
+
 static PyMethodDef fpnge_methods[] = {
 	{
-		"encode",
-		fpnge_encode,
+		"encode_bytes",
+		fpnge_encode_bytes,
 		METH_VARARGS,
 		"encode(image_data, width, stride, height, num_channels, bits_per_channel)"
+	},
+	{
+		"encode_view",
+		fpnge_encode_view,
+		METH_VARARGS,
+		"encode_view(image_data, width, stride, height, num_channels, bits_per_channel)"
 	},
 	{NULL, NULL, 0, NULL}
 };
