@@ -4,7 +4,7 @@ This simple module provides Python bindings for the fast PNG encoder, [fpnge](ht
 
 This module has only been tested with Python3. Distutils is required (`apt install python3-distutils` under Debian based distros should grab it).
 
-fpnge currently only runs on x86 processors, and requires SSE4.1+PCLMUL support at minimum.
+fpnge currently only runs on x86 processors, and requires SSE4.1 support at minimum.
 Note: there is no dynamic CPU detection implemented, so this module should be installed/compiled on the machine it is going to run on.
 
 This module can then be installed by running `python3 setup.py install` in the folder with the code.
