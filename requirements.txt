@@ -1,3 +1,5 @@
 opencv-python-headless
+Pillow
 pytest
+numpy
 black
