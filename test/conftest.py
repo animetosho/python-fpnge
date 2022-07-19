@@ -6,7 +6,7 @@ import pytest
 import os
 print(f"PID TO DEBUG: {os.getpid()}")
 
-_BASE_PATH = Path(__file__).parent.parent / "tmp"
+_BASE_PATH = Path(__file__).parent / "testfiles"
 _PNG_8BIT_PATH = _BASE_PATH / "8b.png"
 _PNG_12BIT_PATH = _BASE_PATH / "12b.png"
 
