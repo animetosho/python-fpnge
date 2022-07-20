@@ -39,13 +39,13 @@ fpnge.frombytes(bytes, width, height, channels, bits_per_channel [, stride])
 Converts a raw image specified as a bytes object in *bytes* to a PNG, returning it as a bytes object.
 
 The pixel dimensions of the supplied image must be specified in *width* and *height,* with *stride* being the number of bytes per row (if unspecified, assumes *stride* = *width* \* *channels* \* *bits_per_channel*/8).
-*bits_per_channel* signifies the bit depth for each colour channel. Only 8 and 16 bits per channel are supported.
+*bits_per_channel* signifies the bit depth for each colour channel. Only 8 and 16 bits per channel are supported. Note that if 16 bits per channel is selected, samples must be big-endian.
 *channels* refers to the number of colour channels the image has, with the following assumption:
 
 * 1 channel: this is a greyscale image
-* 2 channels: this is a greyscale + alpha image
-* 3 channels: RGB colour
-* 4 channels: RGBA colour
+* 2 channels: this is a greyscale + alpha image. Channels are interleaved with greyscale being first, followed by alpha.
+* 3 channels: RGB colour. Channel interleaving order is: red, green, blue.
+* 4 channels: RGBA colour. Channel interleaving order is: red, green, blue, alpha.
 
 No other values are allowed for *channels*
 
@@ -54,8 +54,8 @@ fpnge.fromNP(ndarray)
 
 Converts a raw image stored in a 3-dimensional NumPy *ndarray* to a PNG, returning it as a bytes object.
 
-The dimensions must be width, height and colour channels (see `frombytes` function above for how the channel count is interpreted).  
-The element type should be a `uint8` or `uint16`.
+The dimensions must be width, height and colour channels (see `frombytes` function above for how the channel count is interpreted and channel components are ordered).  
+The element type should be a `uint8` or `'>u2'`.
 
 ## fpnge.fromview(view [, width] [, height] [, channels] [, bits_per_channel] [, stride])
 
