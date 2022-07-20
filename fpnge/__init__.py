@@ -37,19 +37,26 @@ def frombytes(bytes, width, height, channels, bits_per_channel, stride=0) -> byt
 
 def fromNP(ndarray: 'NDArray') -> bytes:
 	if ndarray.ndim != 3:
-		raise Exception("Must have 3 dimensions (height x width x channels)")
+		raise AttributeError("Must have 3 dimensions (height x width x channels)")
+	if ndarray.itemsize > 1 and ndarray.dtype.byteorder != '>':
+		# Note: the python bindings will actually swap this, but it can be inconsistent and so is better to be explicit
+		raise AttributeError("For dtypes larger than 8bits, byteorder must be big-endian. Consider using `np.ndarray.byteswap` explicitly")
 	# This definition of shape agrees with: https://numpy.org/doc/stable/reference/generated/numpy.ndarray.shape.html#numpy.ndarray.shape
 	return fpnge.binding.encode_view(ndarray.data, ndarray.shape[1], ndarray.shape[0], ndarray.shape[2], ndarray.dtype.itemsize * 8)
 
 def fromMat(mat: 'Mat') -> bytes:
 	try:
 		import cv2
+		import numpy as np
 	except ImportError as _:
-		raise ImportError("Cannot use fromMat without opencv-python installed")
+		raise ImportError("Cannot use fromMat without opencv-python & numpy installed")
 	if mat.ndim != 3:
 		raise Exception("Must have 3 dimensions (width x height x channels)")
 	# cv2 Mats are BGR, needs to be RGB:
 	mat = cv2.cvtColor(mat, cv2.COLOR_BGR2RGB)
+	if mat.dtype == 'uint16':
+		# cv2.Mat claims to be uint16, but in reality they are '>u2' pixel values. Cast it, otherwise the python bindings will byteswap.
+		mat = mat.astype('>u2')
 	return fromNP(mat)
 
 def fromview(view: memoryview, width=0, height=0, channels=0, bits_per_channel=0, stride=0) -> bytes:
