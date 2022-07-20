@@ -4,11 +4,13 @@ from PIL import Image
 import numpy as np
 import pytest
 import os
+
 print(f"PID TO DEBUG: {os.getpid()}")
 
 _BASE_PATH = Path(__file__).parent / "testfiles"
 _PNG_8BIT_PATH = _BASE_PATH / "8b.png"
 _PNG_12BIT_PATH = _BASE_PATH / "12b.png"
+
 
 @pytest.fixture
 def cv2_8bit_png():
@@ -31,5 +33,6 @@ def pillow_8bit_png():
     image = Image.open(str(_PNG_8BIT_PATH))
     image.load()
     yield image
+
 
 # note: Pillow CANNOT load 16b PNG
