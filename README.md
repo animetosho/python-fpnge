@@ -54,8 +54,10 @@ fpnge.fromNP(ndarray)
 
 Converts a raw image stored in a 3-dimensional NumPy *ndarray* to a PNG, returning it as a bytes object.
 
-The dimensions must be width, height and colour channels (see `frombytes` function above for how the channel count is interpreted and channel components are ordered).  
+The dimensions must be height, width and colour channels (see `frombytes` function above for how the channel count is interpreted and channel components are ordered).  
 The element type should be a `uint8` or `'>u2'`.
+
+**Note:** This differs from the Pillow definition of `shape` which is `(width, height, channels)`
 
 ## fpnge.fromview(view [, width] [, height] [, channels] [, bits_per_channel] [, stride])
 
