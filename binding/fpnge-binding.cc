@@ -35,7 +35,7 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 	PyBytesObject *sv = (PyBytesObject *)Py_output_buffer;
 	
 	Py_BEGIN_ALLOW_THREADS; // TODO: do we need to add ref onto the input buffer?
-	output_len = FPNGEEncode(bits_per_channel/8, num_channels, data, width, stride, height, sv->ob_sval);
+	output_len = FPNGEEncode(bits_per_channel/8, num_channels, data, width, stride, height, sv->ob_sval, nullptr);
 	Py_END_ALLOW_THREADS;
 	
 	if (!output_len) {
