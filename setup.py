@@ -64,7 +64,7 @@ class CustomBuild(build_ext):
 setup(
 	name="fpnge",
 	description="Python binding for fpnge",
-	version="1.1.1",
+	version="1.1.2",
 	author="Anime Tosho",
 	url="https://github.com/animetosho/python-fpnge/",
 	license="CC0",
