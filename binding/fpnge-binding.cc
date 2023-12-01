@@ -81,7 +81,9 @@ PyObject* fpnge_encode_view(PyObject* self, PyObject* args) {
 	
 	if (!PyArg_ParseTuple(args, "OIIII|I", &view, &width, &height, &num_channels, &bits_per_channel, &stride))
 		return NULL;
-	
+
+	Py_INCREF(view);
+
 	if (!PyMemoryView_Check(view)) {
 		PyErr_SetString(PyExc_SystemError, "Given object is not a memoryview");
 		Py_DECREF(view);
