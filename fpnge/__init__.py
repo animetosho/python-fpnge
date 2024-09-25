@@ -5,9 +5,8 @@ if TYPE_CHECKING:
 	from PIL.Image import Image
 	from cv2 import Mat
 import fpnge.binding
-import fpnge.binding
 
-def fromPIL(im: 'Image') -> bytes:
+def fromPIL(im: 'Image', comp_level=4) -> bytes:
 	mode_map = {
 	  "L":    (1, 8),
 	  "RGB":  (3, 8),
@@ -30,21 +29,21 @@ def fromPIL(im: 'Image') -> bytes:
 		im = im.convert(mode=conv_map[im.mode])
 	
 	imbytes = im.tobytes()
-	return fpnge.binding.encode_bytes(imbytes, im.width, im.height, *mode_map[im.mode])
+	return fpnge.binding.encode_bytes(imbytes, im.width, im.height, *mode_map[im.mode], comp_level)
 
-def frombytes(bytes, width, height, channels, bits_per_channel, stride=0) -> bytes:
-	return fpnge.binding.encode_bytes(bytes, width, height, channels, bits_per_channel, stride)
+def frombytes(bytes, width, height, channels, bits_per_channel, comp_level=4, stride=0) -> bytes:
+	return fpnge.binding.encode_bytes(bytes, width, height, channels, bits_per_channel, comp_level, stride)
 
-def fromNP(ndarray: 'NDArray') -> bytes:
+def fromNP(ndarray: 'NDArray', comp_level=4) -> bytes:
 	if ndarray.ndim != 3:
 		raise AttributeError("Must have 3 dimensions (height x width x channels)")
 	if ndarray.itemsize > 1 and ndarray.dtype.byteorder != '>':
 		# Note: the python bindings will actually swap this, but it can be inconsistent and so is better to be explicit
 		raise AttributeError("For dtypes larger than 8bits, byteorder must be big-endian. Consider using `np.ndarray.byteswap` explicitly")
 	# This definition of shape agrees with: https://numpy.org/doc/stable/reference/generated/numpy.ndarray.shape.html#numpy.ndarray.shape
-	return fpnge.binding.encode_view(ndarray.data, ndarray.shape[1], ndarray.shape[0], ndarray.shape[2], ndarray.dtype.itemsize * 8)
+	return fpnge.binding.encode_view(ndarray.data, ndarray.shape[1], ndarray.shape[0], ndarray.shape[2], ndarray.dtype.itemsize * 8, comp_level)
 
-def fromMat(mat: 'Mat') -> bytes:
+def fromMat(mat: 'Mat', comp_level=4) -> bytes:
 	try:
 		import cv2
 		import numpy as np
@@ -57,9 +56,9 @@ def fromMat(mat: 'Mat') -> bytes:
 	if mat.dtype == 'uint16':
 		# cv2.Mat claims to be uint16, but in reality they are '>u2' pixel values. Cast it, otherwise the python bindings will byteswap.
 		mat = mat.astype('>u2')
-	return fromNP(mat)
+	return fromNP(mat, comp_level)
 
-def fromview(view: memoryview, width=0, height=0, channels=0, bits_per_channel=0, stride=0) -> bytes:
+def fromview(view: memoryview, width=0, height=0, channels=0, bits_per_channel=0, comp_level=4, stride=0) -> bytes:
 	if stride == 0 and width == 0:
 		stride = view.strides[0]
 	if width == 0:
@@ -70,5 +69,5 @@ def fromview(view: memoryview, width=0, height=0, channels=0, bits_per_channel=0
 		channels = view.shape[2]
 	if bits_per_channel == 0:
 		bits_per_channel = view.itemsize * 8
-	return fpnge.binding.encode_view(view, width, height, channels, bits_per_channel, stride)
+	return fpnge.binding.encode_view(view, width, height, channels, bits_per_channel, comp_level, stride)
 

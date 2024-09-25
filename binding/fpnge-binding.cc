@@ -2,7 +2,7 @@
 #include <Python.h>
 #include "fpnge.h"
 
-static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width, unsigned stride, unsigned height, unsigned num_channels, unsigned bits_per_channel) {
+static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width, unsigned stride, unsigned height, unsigned num_channels, unsigned bits_per_channel, unsigned comp_level) {
 	// check params
 	if (width < 1 || height < 1) {
 		PyErr_SetString(PyExc_ValueError, "Image size must be at least 1x1");
@@ -24,7 +24,13 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 		PyErr_SetString(PyExc_ValueError, "Not enough image data given");
 		return NULL;
 	}
-	
+	if (comp_level > FPNGE_COMPRESS_LEVEL_BEST) {
+		PyErr_SetString(PyExc_ValueError, "Compression level must be 1-5");
+		return NULL;
+	}
+
+	struct FPNGEOptions options;
+  	FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
 	
 	size_t output_len = FPNGEOutputAllocSize(bits_per_channel/8, num_channels, width, height);
 	PyObject *Py_output_buffer = PyBytes_FromStringAndSize(NULL, output_len + 1);
@@ -35,7 +41,7 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 	PyBytesObject *sv = (PyBytesObject *)Py_output_buffer;
 	
 	Py_BEGIN_ALLOW_THREADS; // TODO: do we need to add ref onto the input buffer?
-	output_len = FPNGEEncode(bits_per_channel/8, num_channels, data, width, stride, height, sv->ob_sval, nullptr);
+	output_len = FPNGEEncode(bits_per_channel/8, num_channels, data, width, stride, height, sv->ob_sval, &options);
 	Py_END_ALLOW_THREADS;
 	
 	if (!output_len) {
@@ -63,23 +69,23 @@ PyObject* fpnge_encode_bytes(PyObject* self, PyObject* args) {
 	(void)self;
 	
 	const char* data; Py_ssize_t data_len;
-	unsigned width, stride = 0, height, num_channels, bits_per_channel;
+	unsigned width, stride = 0, height, num_channels, bits_per_channel, comp_level;
 	
-	if (!PyArg_ParseTuple(args, "y#IIII|I", &data, &data_len, &width, &height, &num_channels, &bits_per_channel, &stride))
+	if (!PyArg_ParseTuple(args, "y#IIIII|I", &data, &data_len, &width, &height, &num_channels, &bits_per_channel, &comp_level, &stride))
 		return NULL;
 	
 	if (stride == 0) stride = width * num_channels * bits_per_channel/8;
 	
-	return do_encode(data, data_len, width, stride, height, num_channels, bits_per_channel);
+	return do_encode(data, data_len, width, stride, height, num_channels, bits_per_channel, comp_level);
 }
 
 PyObject* fpnge_encode_view(PyObject* self, PyObject* args) {
 	(void)self;
 	
 	PyObject* view;
-	unsigned width, stride = 0, height, num_channels, bits_per_channel;
+	unsigned width, stride = 0, height, num_channels, bits_per_channel, comp_level;
 	
-	if (!PyArg_ParseTuple(args, "OIIII|I", &view, &width, &height, &num_channels, &bits_per_channel, &stride))
+	if (!PyArg_ParseTuple(args, "OIIIII|I", &view, &width, &height, &num_channels, &bits_per_channel, &comp_level, &stride))
 		return NULL;
 
 	Py_INCREF(view);
@@ -99,7 +105,7 @@ PyObject* fpnge_encode_view(PyObject* self, PyObject* args) {
 		return NULL;
 	}
 	
-	PyObject* ret = do_encode(view_buf->buf, view_buf->len, width, stride, height, num_channels, bits_per_channel);
+	PyObject* ret = do_encode(view_buf->buf, view_buf->len, width, stride, height, num_channels, bits_per_channel, comp_level);
 	Py_DECREF(view);
 	return ret;
 }
@@ -110,13 +116,13 @@ static PyMethodDef fpnge_methods[] = {
 		"encode_bytes",
 		fpnge_encode_bytes,
 		METH_VARARGS,
-		"encode(image_data, width, stride, height, num_channels, bits_per_channel)"
+		"encode(image_data, width, stride, height, num_channels, bits_per_channel, comp_level)"
 	},
 	{
 		"encode_view",
 		fpnge_encode_view,
 		METH_VARARGS,
-		"encode_view(image_data, width, stride, height, num_channels, bits_per_channel)"
+		"encode_view(image_data, width, stride, height, num_channels, bits_per_channel, comp_level)"
 	},
 	{NULL, NULL, 0, NULL}
 };
