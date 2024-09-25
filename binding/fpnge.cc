@@ -22,7 +22,7 @@
 #include <vector>
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#define FORCE_INLINE_LAMBDA [[msvc::forceinline]]
+#define FORCE_INLINE_LAMBDA
 #define FORCE_INLINE __forceinline
 #define __SSE4_1__ 1
 #define __PCLMUL__ 1
@@ -371,6 +371,11 @@ struct BitWriter {
     if (bits_in_buffer != 0) {
       Write(8 - bits_in_buffer, 0);
     }
+  }
+
+  void WriteBytes(const char *data, size_t count) {
+    memcpy(this->data + bytes_written, data, count);
+    bytes_written += count;
   }
 
   unsigned char *data;
@@ -1407,6 +1412,8 @@ static void AppendBE32(size_t value, BitWriter *__restrict writer) {
 
 static void WriteHeader(size_t width, size_t height, size_t bytes_per_channel,
                         size_t num_channels, char cicp_colorspace,
+                        const FPNGEAdditionalChunk *additional_chunks,
+                        int num_additional_chunks,
                         BitWriter *__restrict writer) {
   constexpr uint8_t kPNGHeader[8] = {137, 80, 78, 71, 13, 10, 26, 10};
   for (size_t i = 0; i < 8; i++) {
@@ -1439,9 +1446,142 @@ static void WriteHeader(size_t width, size_t height, size_t bytes_per_channel,
     writer->Write(32, 0x01001009); // PQ, Rec2020
     writer->Write(32, 0xfe23234d); // CRC
   }
+  for (int i = 0; i < num_additional_chunks; i++) {
+    AppendBE32(additional_chunks[i].data_size, writer);
+    size_t crc_start = writer->bytes_written;
+    uint32_t name = 0;
+    memcpy(&name, additional_chunks[i].name, 4);
+    writer->Write(32, name);
+    writer->WriteBytes(additional_chunks[i].data,
+                       additional_chunks[i].data_size);
+    size_t crc_end = writer->bytes_written;
+    uint32_t crc =
+        Crc32().update_final(writer->data + crc_start, crc_end - crc_start);
+    AppendBE32(crc, writer);
+  }
 }
 
-}  // namespace
+void CopyRow(unsigned char *dst, const unsigned char *src, size_t nb_channels,
+             size_t bytes_per_channel, FPNGEColorChannelOrder order,
+             size_t width) {
+  if (order == FPNGE_ORDER_RGB || nb_channels <= 2) {
+    memcpy(dst, src, nb_channels * bytes_per_channel * width);
+    return;
+  }
+  size_t x = 0;
+  if (nb_channels == 4 && bytes_per_channel == 1) {
+    for (; x + SIMD_WIDTH / 4 <= width; x += SIMD_WIDTH / 4) {
+      auto vec = MMSI(loadu)((MIVEC *)(src + x * 4));
+      auto shuf = MM(shuffle_epi8)(
+          vec, BCAST128(_mm_setr_epi8(2, 1, 0, 3, 6, 5, 4, 7, 10, 9, 8, 11, 14,
+                                      13, 12, 15)));
+      MMSI(storeu)((MIVEC *)(dst + x * 4), shuf);
+    }
+  } else if (nb_channels == 4 && bytes_per_channel == 2) {
+    for (; x + SIMD_WIDTH / 8 <= width; x += SIMD_WIDTH / 8) {
+      auto vec = MMSI(loadu)((MIVEC *)(src + x * 8));
+      auto shuf = MM(shuffle_epi8)(
+          vec, BCAST128(_mm_setr_epi8(4, 5, 2, 3, 0, 1, 6, 7, 12, 13, 10, 11, 8,
+                                      9, 14, 15)));
+      MMSI(storeu)((MIVEC *)(dst + x * 8), shuf);
+    }
+  } else if (nb_channels == 3 && bytes_per_channel == 1) {
+    for (; x + 16 <= width; x += 16) {
+      auto vec1 = _mm_loadu_si128((__m128i *)(src + x * 3));
+      auto vec2 = _mm_loadu_si128((__m128i *)(src + x * 3 + 16));
+      auto vec3 = _mm_loadu_si128((__m128i *)(src + x * 3 + 32));
+      auto s1a =
+          _mm_setr_epi8(2, 1, 0, 5, 4, 3, 8, 7, 6, 11, 10, 9, 14, 13, 12, -1);
+      auto s1b = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, -1, 1);
+      auto shuf1 = _mm_or_si128(_mm_shuffle_epi8(vec1, s1a),
+                                _mm_shuffle_epi8(vec2, s1b));
+      auto s2a = _mm_setr_epi8(-1, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, -1, -1);
+      auto s2b =
+          _mm_setr_epi8(0, -1, 4, 3, 2, 7, 6, 5, 10, 9, 8, 13, 12, 11, -1, 15);
+      auto s2c = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, 0, -1);
+      auto shuf2 = _mm_or_si128(_mm_or_si128(_mm_shuffle_epi8(vec1, s2a),
+                                             _mm_shuffle_epi8(vec2, s2b)),
+                                _mm_shuffle_epi8(vec3, s2c));
+      auto s3b = _mm_setr_epi8(14, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, -1, -1);
+      auto s3c =
+          _mm_setr_epi8(-1, 3, 2, 1, 6, 5, 4, 9, 8, 7, 12, 11, 10, 15, 14, 13);
+      auto shuf3 = _mm_or_si128(_mm_shuffle_epi8(vec2, s3b),
+                                _mm_shuffle_epi8(vec3, s3c));
+
+      _mm_storeu_si128((__m128i *)(dst + x * 3), shuf1);
+      _mm_storeu_si128((__m128i *)(dst + x * 3 + 16), shuf2);
+      _mm_storeu_si128((__m128i *)(dst + x * 3 + 32), shuf3);
+    }
+  } else if (nb_channels == 3 && bytes_per_channel == 2) {
+    for (; x + 8 <= width; x += 8) {
+      auto vec1 = _mm_loadu_si128((__m128i *)(src + x * 6));
+      auto vec2 = _mm_loadu_si128((__m128i *)(src + x * 6 + 16));
+      auto vec3 = _mm_loadu_si128((__m128i *)(src + x * 6 + 32));
+      auto s1a =
+          _mm_setr_epi8(4, 5, 2, 3, 0, 1, 10, 11, 8, 9, 6, 7, -1, -1, 14, 15);
+      auto s1b = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               0, 1, -1, -1);
+      auto shuf1 = _mm_or_si128(_mm_shuffle_epi8(vec1, s1a),
+                                _mm_shuffle_epi8(vec2, s1b));
+      auto s2a = _mm_setr_epi8(12, 13, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, -1, -1);
+      auto s2b =
+          _mm_setr_epi8(-1, -1, 6, 7, 4, 5, 2, 3, 12, 13, 10, 11, 8, 9, -1, -1);
+      auto s2c = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, 2, 3);
+      auto shuf2 = _mm_or_si128(_mm_or_si128(_mm_shuffle_epi8(vec1, s2a),
+                                             _mm_shuffle_epi8(vec2, s2b)),
+                                _mm_shuffle_epi8(vec3, s2c));
+      auto s3b = _mm_setr_epi8(-1, -1, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1,
+                               -1, -1, -1, -1);
+      auto s3c =
+          _mm_setr_epi8(0, 1, -1, -1, 8, 9, 6, 7, 4, 5, 14, 15, 12, 13, 10, 11);
+      auto shuf3 = _mm_or_si128(_mm_shuffle_epi8(vec2, s3b),
+                                _mm_shuffle_epi8(vec3, s3c));
+
+      _mm_storeu_si128((__m128i *)(dst + x * 6), shuf1);
+      _mm_storeu_si128((__m128i *)(dst + x * 6 + 16), shuf2);
+      _mm_storeu_si128((__m128i *)(dst + x * 6 + 32), shuf3);
+    }
+  }
+  for (; x < width; x++) {
+    if (nb_channels == 3 && bytes_per_channel == 1) {
+      dst[x * 3] = src[x * 3 + 2];
+      dst[x * 3 + 1] = src[x * 3 + 1];
+      dst[x * 3 + 2] = src[x * 3];
+    }
+    if (nb_channels == 3 && bytes_per_channel == 2) {
+      dst[x * 6] = src[x * 6 + 4];
+      dst[x * 6 + 1] = src[x * 6 + 3];
+      dst[x * 6 + 2] = src[x * 6 + 2];
+      dst[x * 6 + 3] = src[x * 6 + 3];
+      dst[x * 6 + 4] = src[x * 6];
+      dst[x * 6 + 5] = src[x * 6 + 1];
+    }
+    if (nb_channels == 4 && bytes_per_channel == 1) {
+      dst[x * 4] = src[x * 4 + 2];
+      dst[x * 4 + 1] = src[x * 4 + 1];
+      dst[x * 4 + 2] = src[x * 4];
+      dst[x * 4 + 3] = src[x * 4 + 3];
+    }
+    if (nb_channels == 4 && bytes_per_channel == 2) {
+      dst[x * 8] = src[x * 8 + 4];
+      dst[x * 8 + 1] = src[x * 8 + 3];
+      dst[x * 8 + 2] = src[x * 8 + 2];
+      dst[x * 8 + 3] = src[x * 8 + 3];
+      dst[x * 8 + 4] = src[x * 8];
+      dst[x * 8 + 5] = src[x * 8 + 1];
+      dst[x * 8 + 6] = src[x * 8 + 6];
+      dst[x * 8 + 7] = src[x * 8 + 7];
+    }
+  }
+}
+
+} // namespace
 
 extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
                               const void *data, size_t width, size_t row_stride,
@@ -1488,7 +1628,8 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
   writer.data = static_cast<unsigned char *>(output);
 
   WriteHeader(width, height, bytes_per_channel, num_channels,
-              options->cicp_colorspace, &writer);
+              options->cicp_colorspace, options->additional_chunks,
+              options->num_additional_chunks, &writer);
 
   assert(writer.bits_in_buffer == 0);
   size_t chunk_length_pos = writer.bytes_written;
@@ -1520,7 +1661,8 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
     const unsigned char *topleft_buf =
         top_buf - bytes_per_channel * num_channels;
 
-    memcpy(current_row_buf, current_row_in, bytes_per_line);
+    CopyRow(current_row_buf, current_row_in, num_channels, bytes_per_channel,
+            (FPNGEColorChannelOrder)options->channel_order, width);
     if (y == y0 && y != 0) {
       continue;
     }
@@ -1552,7 +1694,8 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
     const unsigned char *topleft_buf =
         top_buf - bytes_per_channel * num_channels;
 
-    memcpy(current_row_buf, current_row_in, bytes_per_line);
+    CopyRow(current_row_buf, current_row_in, num_channels, bytes_per_channel,
+            (FPNGEColorChannelOrder)options->channel_order, width);
 
     EncodeOneRow(bytes_per_line, current_row_buf, top_buf, left_buf,
                  topleft_buf, aligned_pdata_ptr, huffman_table, s1, s2, &writer,

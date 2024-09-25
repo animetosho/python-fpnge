@@ -30,7 +30,7 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 	}
 
 	struct FPNGEOptions options;
-  	FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
+	FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
 	
 	size_t output_len = FPNGEOutputAllocSize(bits_per_channel/8, num_channels, width, height);
 	PyObject *Py_output_buffer = PyBytes_FromStringAndSize(NULL, output_len + 1);
