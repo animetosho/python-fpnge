@@ -25,7 +25,7 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 		return NULL;
 	}
 	if (comp_level > FPNGE_COMPRESS_LEVEL_BEST) {
-		PyErr_SetString(PyExc_ValueError, "Compression level must be 1-5");
+		PyErr_SetString(PyExc_ValueError, "Compression level must be 0-5");
 		return NULL;
 	}
 
@@ -116,13 +116,13 @@ static PyMethodDef fpnge_methods[] = {
 		"encode_bytes",
 		fpnge_encode_bytes,
 		METH_VARARGS,
-		"encode(image_data, width, stride, height, num_channels, bits_per_channel, comp_level)"
+		"encode_bytes(image_data, width, height, num_channels, bits_per_channel, comp_level, stride)"
 	},
 	{
 		"encode_view",
 		fpnge_encode_view,
 		METH_VARARGS,
-		"encode_view(image_data, width, stride, height, num_channels, bits_per_channel, comp_level)"
+		"encode_view(image_data, width, height, num_channels, bits_per_channel, comp_level, stride)"
 	},
 	{NULL, NULL, 0, NULL}
 };
@@ -138,5 +138,6 @@ static struct PyModuleDef fpnge_definition = {
 PyMODINIT_FUNC PyInit_binding(void) {
 	Py_Initialize();
 	PyObject* module = PyModule_Create(&fpnge_definition);
+	PyModule_AddIntConstant(module, "FPNGE_COMPRESS_LEVEL_DEFAULT", FPNGE_COMPRESS_LEVEL_DEFAULT);
 	return module;
 }
