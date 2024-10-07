@@ -28,12 +28,12 @@ API
 
 Note: fpnge does not support indexed color or bit depths below 8 bits/pixel.
 
-fpnge.fromPIL(image)
+fpnge.fromPIL(image [, comp_level])
 ------------------------------------------------------------------
 
 Converts a PIL image specified in *image* to a PNG, returning it as a bytes object. If the image uses a palette, it will be converted to RGBA before saving.
 
-fpnge.frombytes(bytes, width, height, channels, bits_per_channel [, stride])
+fpnge.frombytes(bytes, width, height, channels, bits_per_channel [, comp_level] [, stride])
 --------------------------------------------------------------------------------
 
 Converts a raw image specified as a bytes object in *bytes* to a PNG, returning it as a bytes object.
@@ -49,7 +49,7 @@ The pixel dimensions of the supplied image must be specified in *width* and *hei
 
 No other values are allowed for *channels*
 
-fpnge.fromNP(ndarray)
+fpnge.fromNP(ndarray [, comp_level])
 --------------------------------------------------------------------------------
 
 Converts a raw image stored in a 3-dimensional NumPy *ndarray* to a PNG, returning it as a bytes object.
@@ -59,7 +59,7 @@ The element type should be a `uint8` or `'>u2'`.
 
 **Note:** This differs from the Pillow definition of `shape` which is `(width, height, channels)`
 
-## fpnge.fromview(view [, width] [, height] [, channels] [, bits_per_channel] [, stride])
+## fpnge.fromview(view [, width] [, height] [, channels] [, bits_per_channel] [, comp_level] [, stride])
 
 The `memoryview` version of `frombytes`, where *view* is a C-contiguous `memoryview`.
 
