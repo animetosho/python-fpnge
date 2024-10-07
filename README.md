@@ -27,6 +27,7 @@ API
 ===
 
 Note: fpnge does not support indexed color or bit depths below 8 bits/pixel.
+Note: the *comp_level* parameter in the following functions is the fpnge compression level, which ranges from 1 to 5, defaulting at 4 (which is also aliased to 0).
 
 fpnge.fromPIL(image [, comp_level])
 ------------------------------------------------------------------

@@ -25,7 +25,11 @@ static PyObject* do_encode(const void* data, Py_ssize_t data_len, unsigned width
 		return NULL;
 	}
 	if (comp_level > FPNGE_COMPRESS_LEVEL_BEST) {
-		PyErr_SetString(PyExc_ValueError, "Compression level must be 0-5");
+		#define _STR_HELPER(i) #i
+		#define _STRINGIFY(i) _STR_HELPER(i)
+		PyErr_SetString(PyExc_ValueError, "Compression level must be 0-" _STRINGIFY(FPNGE_COMPRESS_LEVEL_BEST));
+		#undef _STR_HELPER
+		#undef _STRINGIFY
 		return NULL;
 	}
 
